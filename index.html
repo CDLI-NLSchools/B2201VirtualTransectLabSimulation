@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NL Biology 2201 - Ecology Transect Lab Simulation</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        nlblue: '#003366',
+                        nlgold: '#D4AF37',
+                        orgRed: '#EF4444',
+                        orgBlue: '#3B82F6',
+                        orgYellow: '#EAB308',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        /* Custom scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        
+        .transect-canvas-container {
+            position: relative;
+            user-select: none;
+            touch-action: pan-x;
+        }
+
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+            .print-only {
+                display: block !important;
+            }
+            body {
+                background: white !important;
+                color: black !important;
+            }
+            .printable-card {
+                border: 1px solid #cbd5e1 !important;
+                box-shadow: none !important;
+                break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-nlblue text-white shadow-md no-print sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center space-x-3">
+                <div class="p-2 bg-white/10 rounded-lg">
+                    <i class="fa-solid fa-microscope text-2xl text-nlgold"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold leading-tight">NL Biology 2201: Transect Lab</h1>
+                    <p class="text-xs text-slate-300">Population Ecology & Spatial Distribution Field Simulation</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-2">
+                <button id="btn-guide" onclick="toggleModal('modal-guide')" class="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-xs font-semibold rounded-lg transition flex items-center gap-2">
+                    <i class="fa-solid fa-book-open"></i> Lab Instructions
+                </button>
+                <button id="btn-reset" onclick="resetSimulation()" class="px-3 py-1.5 bg-red-600/80 hover:bg-red-600 text-xs font-semibold rounded-lg transition flex items-center gap-2">
+                    <i class="fa-solid fa-rotate"></i> Reset Field Data
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="max-w-7xl mx-auto px-4 py-6 flex-1 w-full flex flex-col gap-6">
+
+        <!-- Controls & Environment Status Panel -->
+        <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-6">
+            
+            <!-- Time Sampling Selector -->
+            <div>
+                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+                    <i class="fa-regular fa-clock text-nlblue mr-1"></i> Select Sampling Period (Diel Time)
+                </label>
+                <div class="inline-flex p-1 bg-slate-100 rounded-lg border border-slate-200">
+                    <button onclick="setTimeOfDay('morning')" id="tab-morning" class="time-tab px-4 py-2 rounded-md font-semibold text-sm transition flex items-center gap-2 bg-amber-500 text-white shadow-sm">
+                        <i class="fa-solid fa-sun text-amber-200"></i> Morning (07:00)
+                    </button>
+                    <button onclick="setTimeOfDay('afternoon')" id="tab-afternoon" class="time-tab px-4 py-2 rounded-md font-semibold text-sm transition flex items-center gap-2 text-slate-600 hover:text-slate-900">
+                        <i class="fa-solid fa-cloud-sun text-sky-500"></i> Afternoon (13:00)
+                    </button>
+                    <button onclick="setTimeOfDay('evening')" id="tab-evening" class="time-tab px-4 py-2 rounded-md font-semibold text-sm transition flex items-center gap-2 text-slate-600 hover:text-slate-900">
+                        <i class="fa-solid fa-moon text-indigo-400"></i> Evening (20:00)
+                    </button>
+                </div>
+            </div>
+
+            <!-- Organism Species Legend -->
+            <div class="flex flex-wrap items-center gap-4 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                <span class="text-xs font-bold text-slate-500 uppercase tracking-wide">Target Organisms:</span>
+                
+                <div class="flex items-center gap-2 bg-white px-2.5 py-1 rounded border border-slate-200 shadow-xs">
+                    <span class="w-3.5 h-3.5 rounded-full bg-orgRed inline-block ring-2 ring-red-200"></span>
+                    <span class="text-xs font-semibold text-slate-700">Organism 1 (Red)</span>
+                </div>
+
+                <div class="flex items-center gap-2 bg-white px-2.5 py-1 rounded border border-slate-200 shadow-xs">
+                    <span class="w-3.5 h-3.5 rounded-full bg-orgBlue inline-block ring-2 ring-blue-200"></span>
+                    <span class="text-xs font-semibold text-slate-700">Organism 2 (Blue)</span>
+                </div>
+
+                <div class="flex items-center gap-2 bg-white px-2.5 py-1 rounded border border-slate-200 shadow-xs">
+                    <span class="w-3.5 h-3.5 rounded-full bg-orgYellow inline-block ring-2 ring-yellow-200"></span>
+                    <span class="text-xs font-semibold text-slate-700">Organism 3 (Yellow)</span>
+                </div>
+            </div>
+
+            <!-- Quadrats Overlay Toggle -->
+            <div class="flex items-center gap-3">
+                <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" id="toggle-quadrats" onchange="renderTransect()" class="sr-only peer" checked>
+                    <div class="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-nlblue"></div>
+                    <span class="ml-2 text-xs font-semibold text-slate-700">Show 1m Grid Lines</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- Field Transect Visualization Canvas Container -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
+            
+            <div class="bg-slate-800 text-white px-4 py-2.5 flex justify-between items-center text-xs">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-ruler-horizontal text-nlgold"></i>
+                    <span class="font-semibold">50 m Belt Transect Viewport (1 m Left, 1 m Right = Total Belt Area 100 m²)</span>
+                </div>
+                <div class="flex items-center gap-4 text-slate-300">
+                    <span><i class="fa-solid fa-arrows-left-right mr-1"></i> Drag / Pan to inspect transect</span>
+                    <span id="current-viewport-pos" class="bg-slate-700 px-2 py-0.5 rounded font-mono text-nlgold">Pos: 0m - 15m</span>
+                </div>
+            </div>
+
+            <!-- Interactive Field Canvas -->
+            <div class="transect-canvas-container p-4 bg-slate-900 overflow-x-hidden flex justify-center items-center" id="canvas-wrapper">
+                <canvas id="transectCanvas" class="cursor-grab active:cursor-grabbing rounded shadow-lg block w-full"></canvas>
+            </div>
+
+            <!-- Viewport Control Slider & Navigation -->
+            <div class="p-3 bg-slate-100 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+                <div class="flex items-center gap-2 w-full sm:w-auto">
+                    <button onclick="panTransect(-5)" class="px-3 py-1.5 bg-white hover:bg-slate-200 text-slate-700 rounded border border-slate-300 font-semibold shadow-xs transition">
+                        <i class="fa-solid fa-chevron-left mr-1"></i> Left 5m
+                    </button>
+                    <button onclick="panTransect(5)" class="px-3 py-1.5 bg-white hover:bg-slate-200 text-slate-700 rounded border border-slate-300 font-semibold shadow-xs transition">
+                        Right 5m <i class="fa-solid fa-chevron-right ml-1"></i>
+                    </button>
+                </div>
+
+                <div class="flex items-center gap-3 w-full sm:w-2/3">
+                    <span class="font-bold text-slate-600 whitespace-nowrap">0m</span>
+                    <input type="range" id="transect-slider" min="0" max="35" value="0" step="0.5" oninput="updateScrollFromSlider(this.value)" class="w-full h-2 bg-slate-300 rounded-lg appearance-none cursor-pointer accent-nlblue">
+                    <span class="font-bold text-slate-600 whitespace-nowrap">50m</span>
+                </div>
+
+                <button onclick="autoCountSample()" class="w-full sm:w-auto px-4 py-1.5 bg-nlblue hover:bg-blue-900 text-white font-semibold rounded shadow-xs transition flex items-center justify-center gap-1.5">
+                    <i class="fa-solid fa-calculator text-nlgold"></i> Record Current Sample
+                </button>
+            </div>
+
+        </div>
+
+        <!-- Lab Sampling Data Table & Density Board -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+            <!-- Real-time Count Table -->
+            <div class="lg:col-span-2 bg-white rounded-xl p-5 shadow-sm border border-slate-200 flex flex-col printable-card">
+                <div class="flex justify-between items-center mb-4">
+                    <div>
+                        <h2 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                            <i class="fa-solid fa-table text-nlblue"></i> Sampling Data Table
+                        </h2>
+                        <p class="text-xs text-slate-500">Record total counts for the full 50m × 2m (100 m²) transect area.</p>
+                    </div>
+                </div>
+
+                <!-- Interactive Data Grid -->
+                <div class="overflow-x-auto flex-1">
+                    <table class="w-full text-xs text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-100 border-b border-slate-200 text-slate-700 uppercase tracking-wider font-bold">
+                                <th class="p-3">Organism Type</th>
+                                <th class="p-3 text-center bg-amber-50/50 border-x border-slate-200">Morning Count</th>
+                                <th class="p-3 text-center bg-sky-50/50 border-r border-slate-200">Afternoon Count</th>
+                                <th class="p-3 text-center bg-indigo-50/50 border-r border-slate-200">Evening Count</th>
+                                <th class="p-3 text-center">Mean Abundance</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-200 text-slate-800 font-medium">
+                            <!-- Organism 1 Row -->
+                            <tr class="hover:bg-slate-50 transition">
+                                <td class="p-3 flex items-center gap-2">
+                                    <span class="w-3.5 h-3.5 rounded-full bg-orgRed"></span>
+                                    <div>
+                                        <div class="font-bold">Organism 1 (Red)</div>
+                                        <div class="text-[10px] text-slate-400">Terrestrial Beetle / Isopod</div>
+                                    </div>
+                                </td>
+                                <td class="p-3 text-center border-x border-slate-200 bg-amber-50/20">
+                                    <input type="number" id="val-org1-m" min="0" placeholder="-" onchange="updateCalculations()" class="w-16 text-center py-1 border border-slate-300 rounded focus:ring-1 focus:ring-nlblue font-bold text-slate-800">
+                                </td>
+                                <td class="p-3 text-center border-r border-slate-200 bg-sky-50/20">
+                                    <input type="number" id="val-org1-a" min="0" placeholder="-" onchange="updateCalculations()" class="w-16 text-center py-1 border border-slate-300 rounded focus:ring-1 focus:ring-nlblue font-bold text-slate-800">
+                                </td>
+                                <td class="p-3 text-center border-r border-slate-200 bg-indigo-50/20">
+                                    <input type="number" id="val-org1-e" min="0" placeholder="-" onchange="updateCalculations()" class="w-16 text-center py-1 border border-slate-300 rounded focus:ring-1 focus:ring-nlblue font-bold text-slate-800">
+                                </td>
+                                <td class="p-3 text-center font-bold text-slate-900" id="mean-org1">--</td>
+                            </tr>
+
+                            <!-- Organism 2 Row -->
+                            <tr class="hover:bg-slate-50 transition">
+                                <td class="p-3 flex items-center gap-2">
+                                    <span class="w-3.5 h-3.5 rounded-full bg-orgBlue"></span>
+                                    <div>
+                                        <div class="font-bold">Organism 2 (Blue)</div>
+                                        <div class="text-[10px] text-slate-400">Flowering Plant / Iris</div>
+                                    </div>
+                                </td>
+                                <td class="p-3 text-center border-x border-slate-200 bg-amber-50/20">
+                                    <input type="number" id="val-org2-m" min="0" placeholder="-" onchange="updateCalculations()" class="w-16 text-center py-1 border border-slate-300 rounded focus:ring-1 focus:ring-nlblue font-bold text-slate-800">
+                                </td>
+                                <td class="p-3 text-center border-r border-slate-200 bg-sky-50/20">
+                                    <input type="number" id="val-org2-a" min="0" placeholder="-" onchange="updateCalculations()" class="w-16 text-center py-1 border border-slate-300 rounded focus:ring-1 focus:ring-nlblue font-bold text-slate-800">
+                                </td>
+                                <td class="p-3 text-center border-r border-slate-200 bg-indigo-50/20">
+                                    <input type="number" id="val-org2-e" min="0" placeholder="-" onchange="updateCalculations()" class="w-16 text-center py-1 border border-slate-300 rounded focus:ring-1 focus:ring-nlblue font-bold text-slate-800">
+                                </td>
+                                <td class="p-3 text-center font-bold text-slate-900" id="mean-org2">--</td>
+                            </tr>
+
+                            <!-- Organism 3 Row -->
+                            <tr class="hover:bg-slate-50 transition">
+                                <td class="p-3 flex items-center gap-2">
+                                    <span class="w-3.5 h-3.5 rounded-full bg-orgYellow"></span>
+                                    <div>
+                                        <div class="font-bold">Organism 3 (Yellow)</div>
+                                        <div class="text-[10px] text-slate-400">Terrestrial Snail / Fungus</div>
+                                    </div>
+                                </td>
+                                <td class="p-3 text-center border-x border-slate-200 bg-amber-50/20">
+                                    <input type="number" id="val-org3-m" min="0" placeholder="-" onchange="updateCalculations()" class="w-16 text-center py-1 border border-slate-300 rounded focus:ring-1 focus:ring-nlblue font-bold text-slate-800">
+                                </td>
+                                <td class="p-3 text-center border-r border-slate-200 bg-sky-50/20">
+                                    <input type="number" id="val-org3-a" min="0" placeholder="-" onchange="updateCalculations()" class="w-16 text-center py-1 border border-slate-300 rounded focus:ring-1 focus:ring-nlblue font-bold text-slate-800">
+                                </td>
+                                <td class="p-3 text-center border-r border-slate-200 bg-indigo-50/20">
+                                    <input type="number" id="val-org3-e" min="0" placeholder="-" onchange="updateCalculations()" class="w-16 text-center py-1 border border-slate-300 rounded focus:ring-1 focus:ring-nlblue font-bold text-slate-800">
+                                </td>
+                                <td class="p-3 text-center font-bold text-slate-900" id="mean-org3">--</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-900 flex items-center gap-3">
+                    <i class="fa-solid fa-circle-info text-nlblue text-lg"></i>
+                    <div>
+                        <strong>Transect Area Formula:</strong> Area = Length (50 m) × Width (2 m) = <strong>100 m²</strong>.<br>
+                        Density = Mean Organisms Count / Total Belt Area (100 m²).
+                    </div>
+                </div>
+            </div>
+
+            <!-- Calculated Densities Box -->
+            <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-200 flex flex-col justify-between printable-card">
+                <div>
+                    <h3 class="text-sm font-bold text-slate-800 mb-1 flex items-center gap-2">
+                        <i class="fa-solid fa-chart-pie text-nlgold"></i> Calculated Densities
+                    </h3>
+                    <p class="text-xs text-slate-500 mb-4">Estimated average density per m² along transect belt.</p>
+
+                    <div class="space-y-3">
+                        <div class="p-3 bg-red-50 border border-red-200 rounded-lg flex justify-between items-center">
+                            <div>
+                                <div class="text-xs font-bold text-red-900">Organism 1 (Red)</div>
+                                <div class="text-[11px] text-red-700" id="density-org1-label">0.00 org/m²</div>
+                            </div>
+                            <span class="text-lg font-extrabold text-red-600" id="density-org1-val">--</span>
+                        </div>
+
+                        <div class="p-3 bg-blue-50 border border-blue-200 rounded-lg flex justify-between items-center">
+                            <div>
+                                <div class="text-xs font-bold text-blue-900">Organism 2 (Blue)</div>
+                                <div class="text-[11px] text-blue-700" id="density-org2-label">0.00 org/m²</div>
+                            </div>
+                            <span class="text-lg font-extrabold text-blue-600" id="density-org2-val">--</span>
+                        </div>
+
+                        <div class="p-3 bg-amber-50 border border-amber-200 rounded-lg flex justify-between items-center">
+                            <div>
+                                <div class="text-xs font-bold text-amber-900">Organism 3 (Yellow)</div>
+                                <div class="text-[11px] text-amber-700" id="density-org3-label">0.00 org/m²</div>
+                            </div>
+                            <span class="text-lg font-extrabold text-amber-600" id="density-org3-val">--</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Lab Guide Modal -->
+    <div id="modal-guide" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center border-b border-slate-200 pb-3">
+                <h3 class="font-bold text-slate-800 text-base flex items-center gap-2">
+                    <i class="fa-solid fa-graduation-cap text-nlblue"></i> Field Transect Lab Instructions
+                </h3>
+                <button onclick="toggleModal('modal-guide')" class="text-slate-400 hover:text-slate-600 p-1">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <div class="text-xs text-slate-700 space-y-3 leading-relaxed">
+                <p><strong>Welcome to the Virtual Belt Transect Lab!</strong> In ecological field studies, sampling along a line transect allows biologists to estimate population density and analyze spatial distribution patterns of species.</p>
+
+                <div class="p-3 bg-amber-50 border border-amber-200 rounded-lg space-y-1">
+                    <div class="font-bold text-amber-900">Transect Dimensions:</div>
+                    <ul class="list-disc pl-5 space-y-1 text-amber-800">
+                        <li><strong>Transect Length:</strong> 50 meters (0 m to 50 m)</li>
+                        <li><strong>Transect Width:</strong> 1 meter on the left (-1 m) + 1 meter on the right (+1 m) = 2 meters total width.</li>
+                        <li><strong>Total Sampling Area:</strong> 50 m × 2 m = <strong>100 m²</strong>.</li>
+                    </ul>
+                </div>
+
+                <h4 class="font-bold text-slate-800 text-sm">Lab Instructions:</h4>
+                <ol class="list-decimal pl-5 space-y-1">
+                    <li>Select the <strong>Morning (07:00)</strong> sampling period.</li>
+                    <li>Pan along the 50 m transect line using the navigation controls or slider to visually count all individuals of <strong>Organism 1 (Red)</strong>, <strong>Organism 2 (Blue)</strong>, and <strong>Organism 3 (Yellow)</strong>.</li>
+                    <li>Enter your recorded totals into the Sampling Data Table or click "Record Current Sample".</li>
+                    <li>Repeat the procedure for <strong>Afternoon (13:00)</strong> and <strong>Evening (20:00)</strong>.</li>
+                    <li>Observe how time of day affects species counts and spatial clustering.</li>
+                </ol>
+
+                <h4 class="font-bold text-slate-800 text-sm">Spatial Distribution Patterns:</h4>
+                <div class="grid grid-cols-3 gap-2 text-center text-[11px] pt-1">
+                    <div class="p-2 bg-slate-100 rounded border border-slate-200">
+                        <strong class="block text-slate-800">Clumped</strong>
+                        Individuals aggregate in patches or groups near resources.
+                    </div>
+                    <div class="p-2 bg-slate-100 rounded border border-slate-200">
+                        <strong class="block text-slate-800">Uniform</strong>
+                        Individuals maintain equal spacing due to competition/territoriality.
+                    </div>
+                    <div class="p-2 bg-slate-100 rounded border border-slate-200">
+                        <strong class="block text-slate-800">Random</strong>
+                        Location of each individual is independent of others.
+                    </div>
+                </div>
+            </div>
+
+            <div class="pt-3 border-t border-slate-200 flex justify-end">
+                <button onclick="toggleModal('modal-guide')" class="px-4 py-2 bg-nlblue text-white text-xs font-bold rounded-lg hover:bg-blue-900 transition">
+                    Got it, start sampling!
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Simulation State
+        let currentTimeOfDay = 'morning'; // 'morning', 'afternoon', 'evening'
+        let viewportStartMeters = 0; // 0m to 35m
+        const viewportWidthMeters = 15; // 15m visible window on canvas
+        const transectLength = 50; // 50 meters
+        let seed = Math.floor(Math.random() * 1000000);
+
+        // Organism data storage
+        let organismData = {
+            morning: [],
+            afternoon: [],
+            evening: []
+        };
+
+        // Pseudo-random number generator for seeded randomness per student/reset
+        function seededRandom() {
+            let x = Math.sin(seed++) * 10000;
+            return x - Math.floor(x);
+        }
+
+        // Generate randomized field organisms with realistic ecology
+        function generateFieldOrganisms() {
+            organismData = { morning: [], afternoon: [], evening: [] };
+
+            // Seed-based parameters
+            const clumpCount1 = 4 + Math.floor(seededRandom() * 3); // 4-6 clumps
+            const clumpCenters = [];
+            for (let i = 0; i < clumpCount1; i++) {
+                clumpCenters.push(5 + seededRandom() * 40);
+            }
+
+            // Generate Organism 1 (Red) - Clumped pattern (Active morning/evening, inactive afternoon)
+            const baseOrg1Count = 28 + Math.floor(seededRandom() * 12);
+            
+            // Morning count
+            for (let i = 0; i < baseOrg1Count; i++) {
+                const center = clumpCenters[i % clumpCenters.length];
+                const x = Math.max(0.5, Math.min(49.5, center + (seededRandom() - 0.5) * 3.5));
+                const y = (seededRandom() - 0.5) * 1.8; // -0.9m to +0.9m
+                organismData.morning.push({ id: `org1-m-${i}`, type: 1, x, y });
+            }
+
+            // Afternoon count (fewer visible, seeking shade)
+            const afternoonCount1 = Math.floor(baseOrg1Count * 0.35);
+            for (let i = 0; i < afternoonCount1; i++) {
+                const center = clumpCenters[i % clumpCenters.length];
+                const x = Math.max(0.5, Math.min(49.5, center + (seededRandom() - 0.5) * 2.5));
+                const y = (seededRandom() - 0.5) * 1.8;
+                organismData.afternoon.push({ id: `org1-a-${i}`, type: 1, x, y });
+            }
+
+            // Evening count (highest active period)
+            const eveningCount1 = Math.floor(baseOrg1Count * 1.25);
+            for (let i = 0; i < eveningCount1; i++) {
+                const center = clumpCenters[i % clumpCenters.length];
+                const x = Math.max(0.5, Math.min(49.5, center + (seededRandom() - 0.5) * 4.0));
+                const y = (seededRandom() - 0.5) * 1.8;
+                organismData.evening.push({ id: `org1-e-${i}`, type: 1, x, y });
+            }
+
+
+            // Generate Organism 2 (Blue) - Uniform distribution (Plants, stay consistent)
+            const uniformSpacing = 2.2 + seededRandom() * 0.4;
+            let currentX = 1.0 + seededRandom() * 1.5;
+            let org2Index = 0;
+
+            while (currentX < 49.0) {
+                const yOffset = ((org2Index % 2 === 0 ? 0.4 : -0.4) + (seededRandom() - 0.5) * 0.2);
+                const item = { type: 2, x: currentX + (seededRandom() - 0.5) * 0.3, y: yOffset };
+                
+                // Plants are visible all day (slightly more blooms open in afternoon)
+                organismData.morning.push({ ...item, id: `org2-m-${org2Index}` });
+                organismData.afternoon.push({ ...item, id: `org2-a-${org2Index}` });
+                organismData.evening.push({ ...item, id: `org2-e-${org2Index}` });
+
+                currentX += uniformSpacing;
+                org2Index++;
+            }
+
+
+            // Generate Organism 3 (Yellow) - Random distribution (Active mostly in afternoon/evening)
+            const baseOrg3Count = 18 + Math.floor(seededRandom() * 8);
+
+            // Morning
+            for (let i = 0; i < Math.floor(baseOrg3Count * 0.5); i++) {
+                const x = 1.0 + seededRandom() * 48.0;
+                const y = (seededRandom() - 0.5) * 1.8;
+                organismData.morning.push({ id: `org3-m-${i}`, type: 3, x, y });
+            }
+
+            // Afternoon (Peak count)
+            for (let i = 0; i < baseOrg3Count; i++) {
+                const x = 1.0 + seededRandom() * 48.0;
+                const y = (seededRandom() - 0.5) * 1.8;
+                organismData.afternoon.push({ id: `org3-a-${i}`, type: 3, x, y });
+            }
+
+            // Evening
+            for (let i = 0; i < Math.floor(baseOrg3Count * 0.8); i++) {
+                const x = 1.0 + seededRandom() * 48.0;
+                const y = (seededRandom() - 0.5) * 1.8;
+                organismData.evening.push({ id: `org3-e-${i}`, type: 3, x, y });
+            }
+        }
+
+        // Canvas rendering logic
+        function renderTransect() {
+            const canvas = document.getElementById('transectCanvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+
+            // Colors based on Diel time
+            let bgColor1 = '#0f172a'; // Morning background default
+            let bgColor2 = '#1e293b';
+            let gridColor = 'rgba(255, 255, 255, 0.2)';
+            let textColor = '#f8fafc';
+
+            if (currentTimeOfDay === 'morning') {
+                bgColor1 = '#2d3748';
+                bgColor2 = '#1a202c';
+            } else if (currentTimeOfDay === 'afternoon') {
+                bgColor1 = '#334155';
+                bgColor2 = '#1e293b';
+            } else if (currentTimeOfDay === 'evening') {
+                bgColor1 = '#020617';
+                bgColor2 = '#0f172a';
+            }
+
+            // Background terrain gradient
+            const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
+            bgGrad.addColorStop(0, bgColor1);
+            bgGrad.addColorStop(1, bgColor2);
+            ctx.fillStyle = bgGrad;
+            ctx.fillRect(0, 0, width, height);
+
+            // Transect Belt (2 meters total width: -1m to +1m)
+            const marginY = 30;
+            const beltHeight = height - (marginY * 2);
+            const centerY = height / 2;
+
+            // Transect Belt fill area
+            ctx.fillStyle = 'rgba(241, 245, 249, 0.08)';
+            ctx.fillRect(0, marginY, width, beltHeight);
+
+            // Transect outer boundaries (-1m left, +1m right)
+            ctx.strokeStyle = 'rgba(212, 175, 55, 0.6)'; // nlgold
+            ctx.lineWidth = 2;
+            ctx.setLineDash([6, 4]);
+            ctx.beginPath();
+            ctx.moveTo(0, marginY);
+            ctx.lineTo(width, marginY);
+            ctx.moveTo(0, height - marginY);
+            ctx.lineTo(width, height - marginY);
+            ctx.stroke();
+
+            // Centerline (0m line marker)
+            ctx.strokeStyle = '#D4AF37';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([]);
+            ctx.beginPath();
+            ctx.moveTo(0, centerY);
+            ctx.lineTo(width, centerY);
+            ctx.stroke();
+
+            // Render 1m Quadrats / Grid Lines if toggled
+            const showGrid = document.getElementById('toggle-quadrats').checked;
+            const pixelsPerMeter = width / viewportWidthMeters;
+
+            for (let m = Math.floor(viewportStartMeters); m <= Math.ceil(viewportStartMeters + viewportWidthMeters); m++) {
+                const screenX = (m - viewportStartMeters) * pixelsPerMeter;
+
+                if (showGrid) {
+                    ctx.strokeStyle = (m % 5 === 0) ? 'rgba(212, 175, 55, 0.4)' : 'rgba(255, 255, 255, 0.15)';
+                    ctx.lineWidth = (m % 5 === 0) ? 2 : 1;
+                    ctx.setLineDash(m % 5 === 0 ? [] : [2, 2]);
+                    ctx.beginPath();
+                    ctx.moveTo(screenX, marginY);
+                    ctx.lineTo(screenX, height - marginY);
+                    ctx.stroke();
+                }
+
+                // Meter markers and labels
+                if (m % 1 === 0 && screenX >= 0 && screenX <= width) {
+                    ctx.fillStyle = textColor;
+                    ctx.font = m % 5 === 0 ? 'bold 11px Inter' : '10px Inter';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(`${m}m`, screenX, marginY - 8);
+                    ctx.fillText(`${m}m`, screenX, height - marginY + 16);
+                }
+            }
+
+            // Render Organisms for the active time period
+            const currentList = organismData[currentTimeOfDay] || [];
+
+            currentList.forEach(org => {
+                // Check if inside current viewport
+                if (org.x >= viewportStartMeters - 0.5 && org.x <= viewportStartMeters + viewportWidthMeters + 0.5) {
+                    const screenX = (org.x - viewportStartMeters) * pixelsPerMeter;
+                    // Scale y from -1.0..+1.0 to canvas coordinates
+                    const screenY = centerY + (org.y * (beltHeight / 2) * 0.85);
+
+                    ctx.save();
+                    ctx.translate(screenX, screenY);
+
+                    if (org.type === 1) { // Organism 1 - Red
+                        ctx.fillStyle = '#EF4444';
+                        ctx.strokeStyle = '#FFFFFF';
+                        ctx.lineWidth = 1.5;
+                        ctx.beginPath();
+                        ctx.arc(0, 0, 7, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.stroke();
+                    } else if (org.type === 2) { // Organism 2 - Blue
+                        ctx.fillStyle = '#3B82F6';
+                        ctx.strokeStyle = '#FFFFFF';
+                        ctx.lineWidth = 1.5;
+                        ctx.beginPath();
+                        ctx.rect(-6, -6, 12, 12);
+                        ctx.fill();
+                        ctx.stroke();
+                    } else if (org.type === 3) { // Organism 3 - Yellow
+                        ctx.fillStyle = '#EAB308';
+                        ctx.strokeStyle = '#FFFFFF';
+                        ctx.lineWidth = 1.5;
+                        ctx.beginPath();
+                        ctx.moveTo(0, -7);
+                        ctx.lineTo(7, 6);
+                        ctx.lineTo(-7, 6);
+                        ctx.closePath();
+                        ctx.fill();
+                        ctx.stroke();
+                    }
+
+                    ctx.restore();
+                }
+            });
+
+            // Update Viewport Position Badge
+            const endPos = Math.min(50, (viewportStartMeters + viewportWidthMeters)).toFixed(1);
+            document.getElementById('current-viewport-pos').textContent = `Pos: ${viewportStartMeters.toFixed(1)}m - ${endPos}m`;
+        }
+
+        // Responsive Canvas Resize
+        function resizeCanvas() {
+            const canvas = document.getElementById('transectCanvas');
+            const wrapper = document.getElementById('canvas-wrapper');
+            if (!canvas || !wrapper) return;
+
+            canvas.width = wrapper.clientWidth - 32; // Fit container padding
+            canvas.height = 220; // Fixed legible height
+            renderTransect();
+        }
+
+        // Change Active Diel Time Period
+        function setTimeOfDay(time) {
+            currentTimeOfDay = time;
+
+            // Reset tab button states
+            ['morning', 'afternoon', 'evening'].forEach(t => {
+                const btn = document.getElementById(`tab-${t}`);
+                if (t === time) {
+                    if (t === 'morning') btn.className = "time-tab px-4 py-2 rounded-md font-semibold text-sm transition flex items-center gap-2 bg-amber-500 text-white shadow-sm";
+                    if (t === 'afternoon') btn.className = "time-tab px-4 py-2 rounded-md font-semibold text-sm transition flex items-center gap-2 bg-sky-500 text-white shadow-sm";
+                    if (t === 'evening') btn.className = "time-tab px-4 py-2 rounded-md font-semibold text-sm transition flex items-center gap-2 bg-indigo-600 text-white shadow-sm";
+                } else {
+                    btn.className = "time-tab px-4 py-2 rounded-md font-semibold text-sm transition flex items-center gap-2 text-slate-600 hover:text-slate-900";
+                }
+            });
+
+            renderTransect();
+        }
+
+        // Pan viewport horizontally
+        function panTransect(delta) {
+            let newPos = viewportStartMeters + delta;
+            newPos = Math.max(0, Math.min(35, newPos));
+            viewportStartMeters = newPos;
+            document.getElementById('transect-slider').value = newPos;
+            renderTransect();
+        }
+
+        // Update scroll from slider input
+        function updateScrollFromSlider(val) {
+            viewportStartMeters = parseFloat(val);
+            renderTransect();
+        }
+
+        // Auto Record Sample for current time period
+        function autoCountSample() {
+            const list = organismData[currentTimeOfDay] || [];
+            let c1 = 0, c2 = 0, c3 = 0;
+
+            list.forEach(org => {
+                if (org.type === 1) c1++;
+                if (org.type === 2) c2++;
+                if (org.type === 3) c3++;
+            });
+
+            const suffix = currentTimeOfDay.charAt(0); // 'm', 'a', or 'e'
+            document.getElementById(`val-org1-${suffix}`).value = c1;
+            document.getElementById(`val-org2-${suffix}`).value = c2;
+            document.getElementById(`val-org3-${suffix}`).value = c3;
+
+            updateCalculations();
+        }
+
+        // Calculate Mean Abundance & Population Density per m²
+        function updateCalculations() {
+            const totalArea = 100.0; // 50m length * 2m total width
+
+            [1, 2, 3].forEach(orgNum => {
+                const vm = parseFloat(document.getElementById(`val-org${orgNum}-m`).value);
+                const va = parseFloat(document.getElementById(`val-org${orgNum}-a`).value);
+                const ve = parseFloat(document.getElementById(`val-org${orgNum}-e`).value);
+
+                const validVals = [vm, va, ve].filter(v => !isNaN(v) && v >= 0);
+
+                if (validVals.length > 0) {
+                    const sum = validVals.reduce((a, b) => a + b, 0);
+                    const mean = sum / validVals.length;
+                    const density = mean / totalArea;
+
+                    document.getElementById(`mean-org${orgNum}`).textContent = mean.toFixed(1);
+                    document.getElementById(`density-org${orgNum}-val`).textContent = `${density.toFixed(3)} / m²`;
+                    document.getElementById(`density-org${orgNum}-label`).textContent = `Density: ${density.toFixed(3)} org/m²`;
+                } else {
+                    document.getElementById(`mean-org${orgNum}`).textContent = '--';
+                    document.getElementById(`density-org${orgNum}-val`).textContent = '--';
+                    document.getElementById(`density-org${orgNum}-label`).textContent = '0.00 org/m²';
+                }
+            });
+        }
+
+        // Reset Simulation with a fresh randomized seed
+        function resetSimulation() {
+            seed = Math.floor(Math.random() * 1000000);
+            generateFieldOrganisms();
+
+            // Clear inputs
+            ['val-org1-m', 'val-org1-a', 'val-org1-e',
+             'val-org2-m', 'val-org2-a', 'val-org2-e',
+             'val-org3-m', 'val-org3-a', 'val-org3-e'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = '';
+            });
+
+            updateCalculations();
+            renderTransect();
+        }
+
+        // Modal Handler
+        function toggleModal(id) {
+            const el = document.getElementById(id);
+            if (el) el.classList.toggle('hidden');
+        }
+
+        // Window Initialization
+        window.onload = function() {
+            const dateInput = document.getElementById('lab-date');
+            if (dateInput) dateInput.valueAsDate = new Date();
+
+            generateFieldOrganisms();
+            resizeCanvas();
+
+            // Enable drag scrolling on canvas
+            const wrapper = document.getElementById('canvas-wrapper');
+            let isDragging = false;
+            let startX = 0;
+
+            if (wrapper) {
+                wrapper.addEventListener('mousedown', (e) => {
+                    isDragging = true;
+                    startX = e.clientX;
+                });
+                window.addEventListener('mouseup', () => { isDragging = false; });
+                wrapper.addEventListener('mousemove', (e) => {
+                    if (!isDragging) return;
+                    const diffX = e.clientX - startX;
+                    if (Math.abs(diffX) > 15) {
+                        panTransect(diffX > 0 ? -1 : 1);
+                        startX = e.clientX;
+                    }
+                });
+            }
+        };
+
+        window.onresize = resizeCanvas;
+    </script>
+</body>
+</html>
